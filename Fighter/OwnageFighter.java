@@ -231,6 +231,8 @@ public class OwnageFighter extends Script implements PaintListener, MessageListe
     }
     @Override
     public void onFinish() {
+        this.stopScript();
+        super.stopScript(true);
         env.takeScreenshot(true);
     }
     private void createAndWaitforGUI() {
@@ -844,44 +846,50 @@ public class OwnageFighter extends Script implements PaintListener, MessageListe
         return null;
     }
     private boolean needToLoot() {
-        arrowLoot = groundItems.getNearest(arrowID);
-        if (bones) {
-            boneLoot = groundItems.getNearest(allBones);
+        try {
+            arrowLoot = groundItems.getNearest(arrowID);
+            if (bones) {
+                boneLoot = groundItems.getNearest(allBones);
+            }
+            if (lCharms) {
+                charmLoot = groundItems.getNearest(charms);
+            }
+            if (isBTP) {
+                btpLoot = groundItems.getNearest(btpBones);
+            }
+            if (isLooting) {
+                customLoot = groundItems.getNearest(lootz);
+            }
+        } catch (NullPointerException e) {
+            return false;
         }
-        if (lCharms) {
-            charmLoot = groundItems.getNearest(charms);
-        }
-        if (isBTP) {
-            btpLoot = groundItems.getNearest(btpBones);
-        }
-        if (isLooting) {
-            customLoot = groundItems.getNearest(lootz);
-        }
-        if (inventory.isFull() && arrowLoot != null && arrowPickup && calc.pointOnScreen(arrowLoot.getModel().getPoint())
-                && calc.canReach(arrowLoot.getLocation(), false)) {
-            if (isLootInDistance(arrowLoot)) {
-                inventoryClean();
-                if (inventory.isFull()) {
-                    if (inventory.containsOneOf(foodz)) {
-                        doInventoryItem(foodz, "Eat");
-                        return true;
-                    } else if (inventory.containsOneOf(allBones)) {
-                        doInventoryItem(allBones, "Drop");
-                        return true;
+        if (inventory.isFull() && arrowLoot != null && arrowPickup) {
+            if (calc.pointOnScreen(arrowLoot.getModel().getPoint())
+                    && calc.canReach(arrowLoot.getLocation(), false)) {
+                if (isLootInDistance(arrowLoot)) {
+                    //inventoryClean();
+                    if (inventory.isFull()) {
+                        if (inventory.containsOneOf(foodz)) {
+                            doInventoryItem(foodz, "Eat");
+                            return true;
+                        } else if (inventory.containsOneOf(allBones)) {
+                            doInventoryItem(allBones, "Drop");
+                            return true;
+                        } else {
+                            return false;
+                        }
                     } else {
-                        return false;
+                        return true;
                     }
                 } else {
-                    return true;
+                    return false;
                 }
-            } else {
-                return false;
             }
         }
 
         if (inventory.isFull() && charmLoot != null) {
             if (isLootInDistance(charmLoot)) {
-                inventoryClean();
+                //inventoryClean();
                 if (charmLoot.getItem().getStackSize() > 1 && inventory.contains(charmLoot.getItem().getID())) {
                     return true;
                 } else if (charmLoot.getItem().getStackSize() == 1 && inventory.contains(charmLoot.getItem().getID())) {
@@ -908,7 +916,7 @@ public class OwnageFighter extends Script implements PaintListener, MessageListe
 
         if (inventory.isFull() && customLoot != null) {
             if (isLootInDistance(customLoot)) {
-                inventoryClean();
+                //inventoryClean();
                 if (customLoot.getItem().getStackSize() > 1 && inventory.contains(customLoot.getItem().getID())) {
                     return true;
                 } else if (customLoot.getItem().getStackSize() == 1 && inventory.contains(customLoot.getItem().getID())) {
@@ -1034,11 +1042,6 @@ public class OwnageFighter extends Script implements PaintListener, MessageListe
     }
     private void attack() {
 
-        //Clean inventory randomly
-        if (random(1, 1000) == random(1, 1000)) {
-            inventory.dropAllExcept(inventoryClean);
-        }
-
         randomCamera = random(0, 4);
         if (getMyPlayer().getInteracting() == null) {
             RSNPC interacting = getInteractingNPC();
@@ -1115,7 +1118,7 @@ public class OwnageFighter extends Script implements PaintListener, MessageListe
                     walking.walkTileMM(npc.getLocation());
                     if (waitToMove(1000)) {
                         while (getMyPlayer().isMoving()) {
-                            if (calc.pointOnScreen(npc.getScreenLocation()) && !npc.isInteractingWithLocalPlayer() && !npc.isInCombat()
+                            if (calc.pointOnScreen(npc.getScreenLocation()) && !npc.isInCombat()
                                     && calc.canReach(npc.getLocation(), true)) {
                                 npc.doAction("Attack " + npc.getName());
                                 if (waitToMove(1000)) {
@@ -1129,9 +1132,6 @@ public class OwnageFighter extends Script implements PaintListener, MessageListe
                 }
             }
         }
-    }
-    private void inventoryClean() {
-        inventory.dropAllExcept(inventoryClean);
     }
     private void setRandomPitch() {
         if (randomCamera == 0 || randomCamera == 1) {
@@ -1214,6 +1214,28 @@ public class OwnageFighter extends Script implements PaintListener, MessageListe
         }
         return random(1000, 1500);
 
+    }
+    public void MessageRecieved(MessageEvent sme) {
+        String serverString = sme.getMessage().toString();
+        if (serverString.contains("You've just")
+                || serverString.contains("Congratulations")) {
+            this.sleep(random(1500, 2500));
+            if (interfaces.canContinue()) {
+                interfaces.clickContinue();
+            }
+        }
+        if (serverString.contains("no ammo") || serverString.contains("last one")) {
+            if (!inventory.contains(arrowID)) {
+                log("Stopping Script, out of arrows.");
+                logOut();
+            }
+        }
+
+        if (serverString.contains("enough power") || serverString.contains("last one")) {
+            if (spec) {
+                specReady = false;
+            }
+        }
     }
     public void logOut() {
         stopScript(false);
@@ -1413,7 +1435,6 @@ public class OwnageFighter extends Script implements PaintListener, MessageListe
                 specReady = false;
             }
         }
-
     }
     public class OwnagefulFighterGUI extends javax.swing.JFrame {
         private JPanel jPanel10;
@@ -1429,13 +1450,9 @@ public class OwnageFighter extends Script implements PaintListener, MessageListe
                 initComponents();
                 this.setVisible(true);
             } catch (ClassNotFoundException ex) {
-                Logger.getLogger(OwnagefulFighter.class.getName()).log(Level.SEVERE, null, ex);
             } catch (InstantiationException ex) {
-                Logger.getLogger(OwnagefulFighter.class.getName()).log(Level.SEVERE, null, ex);
             } catch (IllegalAccessException ex) {
-                Logger.getLogger(OwnagefulFighter.class.getName()).log(Level.SEVERE, null, ex);
             } catch (UnsupportedLookAndFeelException ex) {
-                Logger.getLogger(OwnagefulFighter.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
         private void initComponents() {
@@ -2700,7 +2717,11 @@ public class OwnageFighter extends Script implements PaintListener, MessageListe
             prices = new int[lootz.length];
             JOptionPane.showMessageDialog(null, "The script will now take a while to load Grand Exchange prices");
             for (int i = 0; i < prices.length; i++) {
-                prices[i] = grandExchange.lookup(lootz[i]).getGuidePrice();
+                try {
+                    prices[i] = grandExchange.lookup(lootz[i]).getGuidePrice();
+                } catch (NullPointerException e) {
+                    prices[i] = 0;
+                }
             }
         }
         private void readLootFile(File fc) {
